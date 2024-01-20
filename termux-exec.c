@@ -72,7 +72,6 @@ static char*const * remove_ld_preload(char*const * envp)
 	return envp;
 }
 
-
 static void update_filename_argv_envp(const char **filename_ptr, char* const **argv_ptr, char*const **envp_ptr)
 {
 	const char *filename = *filename_ptr;
@@ -142,17 +141,12 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 		goto final;
 	}
 
-	if (read_bytes < 5 || !(header[0] == '#' && header[1] == '!')) {
-	        fprintf(stderr, "Not shebang!\n");
-       		goto final;
-    	}		
+	if (read_bytes < 5 || !(header[0] == '#' && header[1] == '!')) goto final;
 
 	header[read_bytes] = 0;
 	char* newline_location = strchr(header, '\n');
-	if (newline_location == NULL) {
-		fprintf(stderr, "quitting\n");
-		goto final;
-	}
+	if (newline_location == NULL) goto final;
+
 	// Strip whitespace at end of shebang:
 	while (*(newline_location - 1) == ' ') newline_location--;
 
@@ -162,10 +156,8 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 	// Skip whitespace to find interpreter start:
 	char* interpreter = header + 2;
 	while (*interpreter == ' ') interpreter++;
-	if (interpreter == newline_location) {
-		fprintf(stderr, "found same thing: %s\n", interpreter);
-		goto final;
-	}
+	if (interpreter == newline_location) goto final;
+
 	char* arg = NULL;
 	char* whitespace_pos = strchr(interpreter, ' ');
 	if (whitespace_pos != NULL) {
@@ -183,11 +175,8 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 
 	char interp_buf[512];
 	const char* new_interpreter = termux_rewrite_executable(interpreter, interp_buf, sizeof(interp_buf));
-	if (new_interpreter == interpreter) {
-		fprintf(stderr, "%d: found the same interpreter: %s\n", __LINE__, new_interpreter);
-		goto final;
-	}
- 
+	if (new_interpreter == interpreter) goto final;
+
 	int orig_argv_count = 0;
 	while (argv[orig_argv_count] != NULL) orig_argv_count++;
 
@@ -244,7 +233,6 @@ final:
 			}
 		}
 	}
-	
 	*filename_ptr = (char*)filename;
 
 	free(new_argv);
