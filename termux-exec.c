@@ -72,11 +72,13 @@ static char*const * remove_ld_preload(char*const * envp)
 	return envp;
 }
 
-static void update_filename_argv_envp(const char **filename_ptr, char* const **argv_ptr, char*const **envp_ptr)
+
+int exec_wrapper(
+	const char* filename,
+	char* const* argv,
+	char* const* envp,
+	int real_exec_fn(const char*, char* const*, char* const*))
 {
-	const char *filename = *filename_ptr;
-	char* const* argv = *argv_ptr;
-	char* const* envp = *envp_ptr;
 	bool android_10_debug = getenv("TERMUX_ANDROID10_DEBUG") != NULL;
 	if (android_10_debug) {
 		printf("execve(%s):\n", filename);
@@ -93,6 +95,7 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 
 	char filename_buffer[512];
 	filename = termux_rewrite_executable(filename, filename_buffer, sizeof(filename_buffer));
+
 	// Error out if the file is not executable:
 	if (access(filename, X_OK) != 0) goto final;
 
@@ -119,7 +122,7 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 		}
 		new_envp[pos] = NULL;
 
-		*envp_ptr = (char**)new_envp;
+		envp = (char**)new_envp;
 		// Not.sure if needed.
 		environ = (char**)new_envp;
 	}
@@ -129,18 +132,16 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 	char header[128];
 	ssize_t read_bytes = read(fd, header, sizeof(header) - 1);
 
-
 	// If we are executing a non-native ELF file, unset LD_PRELOAD.
 	// This avoids CANNOT LINK EXECUTABLE errors when running 32-bit code
 	// on 64-bit.
 	if (read_bytes >= 20 && !memcmp(header, ELFMAG, SELFMAG)) {
 		Elf32_Ehdr* ehdr = (Elf32_Ehdr*)header;
 		if (ehdr->e_machine != EM_NATIVE) {
-			*envp_ptr = remove_ld_preload(envp);
+			envp = remove_ld_preload(envp);
 		}
 		goto final;
 	}
-
 	if (read_bytes < 5 || !(header[0] == '#' && header[1] == '!')) goto final;
 
 	header[read_bytes] = 0;
@@ -191,7 +192,7 @@ static void update_filename_argv_envp(const char **filename_ptr, char* const **a
 	new_argv[current_argc] = NULL;
 
 	filename = new_interpreter;
-	*argv_ptr = (char**) new_argv;
+	argv = (char**) new_argv;
 
 final:
 	if (fd != -1) close(fd);
@@ -218,7 +219,7 @@ final:
 				new_argv[orig_argv_count + 1] = NULL;
 				argv = (char**) new_argv;
 				// Remove LD_PRELOAD environment variable when wrapping in proot
-				*envp_ptr = remove_ld_preload(envp);
+				envp = remove_ld_preload(envp);
 			}
 		} else {
 			errno = 0;
@@ -233,28 +234,39 @@ final:
 			}
 		}
 	}
-	*filename_ptr = (char*)filename;
 
+	int ret = real_exec_fn(filename, argv, envp);
 	free(new_argv);
 	free(new_envp);
-}
-
-
-int execve(const char* filename, char* const* argv, char* const* envp)
-{
-	int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
-	update_filename_argv_envp(&filename, &argv, &envp);
-	int ret = real_execve(filename, argv, envp);
 	return ret;
 }
 
+int _execvp(const char* filename, char* const* argv, char* const* envp)
+{
+	(void)envp;
+        int (*real_execvp) (const char*, char* const[]) = dlsym(RTLD_NEXT, "execvp");
+        int ret = real_execvp(filename, argv);
+        return ret;
+}
+
+int _execve(const char* filename, char* const* argv, char* const* envp)
+{
+	int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
+	int ret = real_execve(filename, argv, envp);
+        return ret;
+}
+
+int execve(const char* filename, char* const* argv, char* const* envp)
+{
+	int (*func_ptr)(const char*, char* const*, char* const*) = _execve;
+	int ret = exec_wrapper(filename, argv, envp, func_ptr);
+	return ret;
+}
 
 int execvp(const char* filename, char* const argv[])
 {
 	char* const* envp = NULL;
-	int (*real_execvp) (const char*, char* const[]) = dlsym(RTLD_NEXT, "execvp");
-	update_filename_argv_envp(&filename, &argv, &envp);
-	int ret = real_execvp(filename, argv);
-	return ret;
+	int (*func_ptr)(const char*, char* const*, char* const*) = _execvp; 
+        int ret = exec_wrapper(filename, argv, envp, func_ptr);
+        return ret;
 }
-
