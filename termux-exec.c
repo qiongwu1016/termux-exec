@@ -110,7 +110,7 @@ int exec_wrapper(
 		size_t envp_count = 0;
 		while (envp[envp_count] != NULL)
 			envp_count++;
-
+		
 		new_envp = malloc((envp_count + 1) * sizeof(char*));
 
 		size_t pos = 0;
@@ -120,6 +120,7 @@ int exec_wrapper(
 					!starts_with(envp[i], "LD_PRELOAD="))
 				new_envp[pos++] = (const char*)envp[i];
 		}
+
 		new_envp[pos] = NULL;
 
 		envp = (char**)new_envp;
@@ -239,34 +240,29 @@ final:
 	free(new_argv);
 	free(new_envp);
 	return ret;
+	
 }
 
 int _execvp(const char* filename, char* const* argv, char* const* envp)
 {
-	(void)envp;
+        (void)envp;
         int (*real_execvp) (const char*, char* const[]) = dlsym(RTLD_NEXT, "execvp");
-        int ret = real_execvp(filename, argv);
-        return ret;
+        return real_execvp(filename, argv);;
 }
 
 int _execve(const char* filename, char* const* argv, char* const* envp)
 {
-	int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
-	int ret = real_execve(filename, argv, envp);
-        return ret;
+        int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
+        return real_execve(filename, argv, envp);
 }
 
 int execve(const char* filename, char* const* argv, char* const* envp)
 {
-	int (*func_ptr)(const char*, char* const*, char* const*) = _execve;
-	int ret = exec_wrapper(filename, argv, envp, func_ptr);
-	return ret;
+        return exec_wrapper(filename, argv, envp, _execve);
 }
 
 int execvp(const char* filename, char* const argv[])
 {
-	char* const* envp = NULL;
-	int (*func_ptr)(const char*, char* const*, char* const*) = _execvp; 
-        int ret = exec_wrapper(filename, argv, envp, func_ptr);
-        return ret;
+        char* null_envp[] = { NULL };
+        return exec_wrapper(filename, argv, (char* const*)null_envp, _execvp);
 }
