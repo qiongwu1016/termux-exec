@@ -73,7 +73,8 @@ static char*const * remove_ld_preload(char*const * envp)
 }
 
 
-int exec_wrapper(
+
+static int exec_wrapper(
 	const char* filename,
 	char* const* argv,
 	char* const* envp,
