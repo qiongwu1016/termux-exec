@@ -111,7 +111,7 @@ static int exec_wrapper(
 		size_t envp_count = 0;
 		while (envp[envp_count] != NULL)
 			envp_count++;
-		
+
 		new_envp = malloc((envp_count + 1) * sizeof(char*));
 
 		size_t pos = 0;
@@ -121,7 +121,6 @@ static int exec_wrapper(
 					!starts_with(envp[i], "LD_PRELOAD="))
 				new_envp[pos++] = (const char*)envp[i];
 		}
-
 		new_envp[pos] = NULL;
 
 		envp = (char**)new_envp;
