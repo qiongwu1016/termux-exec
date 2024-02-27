@@ -245,14 +245,16 @@ final:
 
 int _execvp(const char* filename, char* const* argv, char* const* envp)
 {
-        (void)envp;
+        fprintf(stderr, "Hit _execvp!\n");
+	(void)envp;
         int (*real_execvp) (const char*, char* const[]) = dlsym(RTLD_NEXT, "execvp");
         return real_execvp(filename, argv);;
 }
 
 int _execve(const char* filename, char* const* argv, char* const* envp)
 {
-        int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
+        fprintf(stderr, "Hit _execve!\n");
+	int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
         return real_execve(filename, argv, envp);
 }
 
