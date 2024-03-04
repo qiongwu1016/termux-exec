@@ -72,7 +72,11 @@ static char*const * remove_ld_preload(char*const * envp)
 	return envp;
 }
 
-int execve(const char* filename, char* const* argv, char* const* envp)
+static int exec_wrapper(
+	const char* filename,
+	char* const* argv,
+	char* const* envp,
+	int real_exec_fn(const char*, char* const*, char* const*))
 {
 	bool android_10_debug = getenv("TERMUX_ANDROID10_DEBUG") != NULL;
 	if (android_10_debug) {
@@ -191,7 +195,6 @@ int execve(const char* filename, char* const* argv, char* const* envp)
 
 final:
 	if (fd != -1) close(fd);
-	int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
 
 	bool android_10_wrapping = getenv("TERMUX_ANDROID10") != NULL;
 	if (android_10_wrapping) {
@@ -231,8 +234,27 @@ final:
 		}
 	}
 
-	int ret = real_execve(filename, argv, envp);
+	int ret = real_exec_fn(filename, argv, envp);
 	free(new_argv);
 	free(new_envp);
 	return ret;
+}
+
+static int _execvp(const char* filename, char* const* argv, char* const* envp)
+{
+	(void)envp;
+        int (*real_execvp) (const char*, char* const[]) = dlsym(RTLD_NEXT, "execvp");
+        return real_execvp(filename, argv);
+}
+
+int execve(const char* filename, char* const* argv, char* const* envp)
+{
+        int (*real_execve)(const char*, char* const[], char* const[]) = dlsym(RTLD_NEXT, "execve");
+	return exec_wrapper(filename, argv, envp, real_execve);
+}
+
+int execvp(const char* filename, char* const argv[])
+{
+        char** envp = environ;
+        return exec_wrapper(filename, argv, (char* const*)envp, _execvp);
 }
