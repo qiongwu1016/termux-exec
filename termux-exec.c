@@ -255,6 +255,6 @@ int execve(const char* filename, char* const* argv, char* const* envp)
 
 int execvp(const char* filename, char* const argv[])
 {
-        char** null_envp = environ;
-        return exec_wrapper(filename, argv, (char* const*)null_envp, _execvp);
+        char** envp = environ;
+        return exec_wrapper(filename, argv, (char* const*)envp, _execvp);
 }
